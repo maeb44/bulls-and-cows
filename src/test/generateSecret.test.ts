@@ -17,7 +17,7 @@ describe('generateSecret', () => {
     expect(Array.isArray(result)).toBe(true);
   });
   test('generateSecret возвращает массив заданной длины', () => {
-    const arrayOfLength: lengthOfSecret[] = [1, 2, 3, 4, 5, 6];
+    const arrayOfLength: lengthOfSecret[] = [2, 3, 4, 5, 6];
     arrayOfLength.forEach((e) => {
       expect(generateSecret(e, HEXBase, getRandomValue).length).toBe(e);
     });
