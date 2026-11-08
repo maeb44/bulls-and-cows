@@ -1,7 +1,10 @@
+import { countPossibleSecrets } from '../../utils/countPossibleSecrets';
 import { state } from '../state';
+import { createLeaderboard } from './createLeaderBoard';
+import { LENGTHS, isLengthOfSecret, type baseOfSecret } from '../../types';
+import { loadLeaderboard } from '../storage';
 
-const LENGTHS = [1, 2, 3, 4, 5, 6];
-const BASES = [
+const BASES: { value: baseOfSecret; label: string }[] = [
   { value: 2, label: 'bin(2)' },
   { value: 8, label: 'oct(8)' },
   { value: 10, label: 'dec(10)' },
@@ -19,6 +22,7 @@ function createRadio(
   name: string,
   value: number,
   label: string,
+  checked: boolean,
   extraClass = '',
 ): HTMLLabelElement {
   const labelEl = document.createElement('label');
@@ -28,6 +32,7 @@ function createRadio(
   input.type = 'radio';
   input.name = name;
   input.value = String(value);
+  input.checked = checked;
 
   const box = document.createElement('span');
   box.className = 'radio__box';
@@ -45,18 +50,29 @@ function updateLengthAvailability(lengthBlock: HTMLElement): void {
   });
 }
 
+function updatePosSecret(): void {
+  const span = document.getElementById('possible-secret');
+  if (!span) return;
+  span.textContent = String(countPossibleSecrets(state.length, state.base));
+}
+
 function onLengthChange(e: Event): void {
   const target = e.target;
   if (!(target instanceof HTMLInputElement)) return;
   if (target.type !== 'radio') return;
-  state.length = Number(target.value);
+
+  const value = Number(target.value);
+  if (!isLengthOfSecret(value)) return;
+
+  state.length = value;
+  updatePosSecret();
 }
 
 function onBaseChange(e: Event, lengthBlock: HTMLElement): void {
   const target = e.target;
   if (!(target instanceof HTMLInputElement)) return;
 
-  state.base = Number(target.value);
+  state.base = Number(target.value) as baseOfSecret;
   updateLengthAvailability(lengthBlock);
 
   if (state.length > state.base) {
@@ -64,37 +80,50 @@ function onBaseChange(e: Event, lengthBlock: HTMLElement): void {
     const first = lengthBlock.querySelector<HTMLInputElement>('input[name="length"][value="2"]');
     if (first) first.checked = true;
   }
+  updatePosSecret();
 }
 
-export function renderMenu(): HTMLElement {
+export function renderMenu(onStart: () => void): HTMLElement {
+  state.leaderBoard = loadLeaderboard();
   const menu = document.createElement('div');
   menu.className = 'menu';
+  const title = document.createElement('h1');
+  title.className = 'app__title';
+  title.textContent = 'Bulls and Cows';
+  menu.appendChild(title);
 
   const lengthBlock = document.createElement('div');
   lengthBlock.className = 'menu__input menu__input--length';
   lengthBlock.append(createTitle('SECRET NUMBER LENGTH'));
-  LENGTHS.forEach((value) => lengthBlock.appendChild(createRadio('length', value, String(value))));
+  LENGTHS.forEach((value) =>
+    lengthBlock.appendChild(createRadio('length', value, String(value), value === state.length)),
+  );
   lengthBlock.addEventListener('change', onLengthChange);
 
   const baseBlock = document.createElement('div');
   baseBlock.className = 'menu__input menu__input--base';
   baseBlock.append(createTitle('SECRET NUMBER BASE'));
   BASES.forEach(({ value, label }) =>
-    baseBlock.appendChild(createRadio('base', value, label, 'radio--base')),
+    baseBlock.appendChild(createRadio('base', value, label, value === state.base, 'radio--base')),
   );
   baseBlock.addEventListener('change', (e) => onBaseChange(e, lengthBlock));
 
   const desc = document.createElement('p');
   desc.className = 'menu__desc';
-  desc.textContent = 'Possible secret for these settings:';
+  desc.textContent = 'Possible secret for these settings: ';
+
   const possibleSpan = document.createElement('span');
   possibleSpan.id = 'possible-secret';
+  possibleSpan.textContent = String(countPossibleSecrets(state.length, state.base));
   desc.appendChild(possibleSpan);
 
   const button = document.createElement('button');
   button.className = 'menu__btn';
   button.textContent = 'start';
+  button.addEventListener('click', onStart);
 
-  menu.append(lengthBlock, baseBlock, desc, button);
+  const leaderBoard = createLeaderboard(state.leaderBoard);
+
+  menu.append(lengthBlock, baseBlock, desc, button, leaderBoard);
   return menu;
 }
