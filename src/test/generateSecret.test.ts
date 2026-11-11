@@ -48,4 +48,16 @@ describe('generateSecret', () => {
     const b = generateSecret(4, decimalBase, () => 0.38);
     expect(a).toEqual(b);
   });
+  test('base=10, length=4,seq = 0.38 должно соответствовать заданному значению', () => {
+    const result = generateSecret(4, decimalBase, () => 0.38);
+    expect(result).toEqual(['5', '0', '7', '4']);
+  });
+  test('base=10, length=4,seq = 0.5 должно соответствовать заданному значению', () => {
+    const result = generateSecret(4, decimalBase, () => 0.5);
+    expect(result).toEqual(['0', '9', '1', '7']);
+  });
+  test('base=10, length=4,seq = 0.99 должно соответствовать заданному значению', () => {
+    const result = generateSecret(4, decimalBase, () => 0.99);
+    expect(result).toEqual(['0', '1', '2', '3']);
+  });
 });
