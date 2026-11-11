@@ -63,6 +63,7 @@ function onLengthChange(e: Event): void {
 
   const value = Number(target.value);
   if (!isLengthOfSecret(value)) return;
+  if (value > state.base) return;
 
   state.length = value;
   updatePosSecret();
@@ -107,7 +108,7 @@ export function renderMenu(onStart: () => void): HTMLElement {
     baseBlock.appendChild(createRadio('base', value, label, value === state.base, 'radio--base')),
   );
   baseBlock.addEventListener('change', (e) => onBaseChange(e, lengthBlock));
-
+  updateLengthAvailability(lengthBlock);
   const desc = document.createElement('p');
   desc.className = 'menu__desc';
   desc.textContent = 'Possible secret for these settings: ';

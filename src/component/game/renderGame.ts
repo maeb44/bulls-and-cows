@@ -3,6 +3,7 @@ import { evaluateGuess } from '../../utils/evaluateGuess';
 import { generateSecret } from '../../utils/generateSecret';
 import { createDigitValidator } from '../../utils/createDigitValidator';
 import { addLeaderboardEntry } from '../storage';
+import { isValidGuess } from '../../utils/isValidGuess';
 
 export function renderGame(
   onBackToMenu: () => void,
@@ -10,6 +11,7 @@ export function renderGame(
 ): { element: HTMLElement; startTimer: () => void } {
   state.secret = generateSecret(state.length, state.base);
   state.startedAt = null;
+  state.history = [];
 
   const game = document.createElement('div');
   game.className = 'game';
@@ -35,6 +37,7 @@ export function renderGame(
   params.append(lengthSpan, baseSpan, timerSpan);
   game.appendChild(params);
 
+  // --- Секция ввода ---
   const inputSection = document.createElement('div');
   inputSection.className = 'game__section';
 
@@ -58,6 +61,7 @@ export function renderGame(
   inputSection.append(inputLabel, input, checkBtn);
   game.appendChild(inputSection);
 
+  // --- Секция истории ---
   const historySection = document.createElement('div');
   historySection.className = 'game__section';
 
@@ -68,14 +72,46 @@ export function renderGame(
   const history = document.createElement('div');
   history.className = 'game__history';
 
-  const empty = document.createElement('p');
-  empty.className = 'game__history-empty';
-  empty.textContent = 'Пока нет попыток';
-  history.appendChild(empty);
-
   historySection.append(historyLabel, history);
   game.appendChild(historySection);
 
+  const renderHistory = (): void => {
+    history.replaceChildren();
+    if (state.history.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'game__history-empty';
+      empty.textContent = 'Пока нет попыток';
+      history.appendChild(empty);
+      return;
+    }
+    [...state.history].reverse().forEach((attempt) => {
+      const row = document.createElement('div');
+      row.className = 'game__history-row';
+
+      const guessSpan = document.createElement('span');
+      guessSpan.className = 'game__history-row-guess';
+      guessSpan.textContent = attempt.guess;
+
+      const bullsSpan = document.createElement('span');
+      bullsSpan.className = 'game__history-row-bulls';
+      bullsSpan.textContent = `${attempt.bulls} ${
+        attempt.bulls === 1 ? 'бык' : attempt.bulls >= 2 && attempt.bulls <= 4 ? 'быка' : 'быков'
+      }`;
+
+      const cowsSpan = document.createElement('span');
+      cowsSpan.className = 'game__history-row-cows';
+      cowsSpan.textContent = `${attempt.cows} ${
+        attempt.cows === 1 ? 'корова' : attempt.cows >= 2 && attempt.cows <= 4 ? 'коровы' : 'коров'
+      }`;
+
+      row.append(guessSpan, bullsSpan, cowsSpan);
+      history.appendChild(row);
+    });
+  };
+
+  renderHistory();
+
+  // --- Кнопки ---
   const backBtn = document.createElement('button');
   backBtn.className = 'game__btn game__btn--back';
   backBtn.textContent = 'В меню';
@@ -84,6 +120,7 @@ export function renderGame(
   newGameBtn.className = 'game__btn game__btn--new';
   newGameBtn.textContent = 'Новая игра';
 
+  // --- Таймер ---
   let timerId: ReturnType<typeof setInterval> | null = null;
 
   const updateTimer = (): void => {
@@ -111,45 +148,32 @@ export function renderGame(
     if (!lastChar) return;
 
     const validator = createDigitValidator(state.base);
-    if (!validator(lastChar)) {
+    const previous = input.value.slice(0, -1).toLowerCase();
+    const normalized = lastChar.toLowerCase();
+
+    // невалидный символ ИЛИ дубликат уже введённого
+    if (!validator(lastChar) || previous.includes(normalized)) {
       input.value = input.value.slice(0, -1);
       return;
     }
 
-    checkBtn.disabled = input.value.length !== state.length;
+    checkBtn.disabled = !isValidGuess(input.value, state.length, state.base);
   };
 
   const onCheck = (): void => {
     const guess = input.value;
-    if (guess.length !== state.length) return;
+    if (!isValidGuess(guess, state.length, state.base)) {
+      input.value = '';
+      checkBtn.disabled = true;
+      return;
+    }
 
     startTimer();
 
     const result = evaluateGuess(state.secret, guess);
 
-    empty.remove();
-
-    const row = document.createElement('div');
-    row.className = 'game__history-row';
-
-    const guessSpan = document.createElement('span');
-    guessSpan.className = 'game__history-row-guess';
-    guessSpan.textContent = guess;
-
-    const bullsSpan = document.createElement('span');
-    bullsSpan.className = 'game__history-row-bulls';
-    bullsSpan.textContent = `${result.bulls} ${
-      result.bulls === 1 ? 'бык' : result.bulls >= 2 && result.bulls <= 4 ? 'быка' : 'быков'
-    }`;
-
-    const cowsSpan = document.createElement('span');
-    cowsSpan.className = 'game__history-row-cows';
-    cowsSpan.textContent = `${result.cows} ${
-      result.cows === 1 ? 'корова' : result.cows >= 2 && result.cows <= 4 ? 'коровы' : 'коров'
-    }`;
-
-    row.append(guessSpan, bullsSpan, cowsSpan);
-    history.prepend(row);
+    state.history = [...state.history, { guess, bulls: result.bulls, cows: result.cows }];
+    renderHistory();
 
     input.value = '';
     checkBtn.disabled = true;
@@ -161,7 +185,7 @@ export function renderGame(
       const seconds = state.startedAt
         ? Math.max(1, Math.ceil((Date.now() - state.startedAt) / 1000))
         : 1;
-      const attempts = history.children.length;
+      const attempts = state.history.length;
 
       addLeaderboardEntry({
         attempts,
